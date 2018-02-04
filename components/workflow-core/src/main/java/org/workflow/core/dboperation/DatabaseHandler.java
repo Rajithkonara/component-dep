@@ -8,11 +8,13 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.workflow.core.model.HistoryDetails;
 import org.workflow.core.model.HistoryResponse;
+import org.workflow.core.model.HistorySearchDTO;
 import org.workflow.core.util.Tables;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -174,6 +176,131 @@ public class DatabaseHandler {
             DbUtils.closeAllConnections(ps, conn, rs);
         }
         return historyResponse;
+    }
+    public HistoryResponse getApprovalHistory(HistorySearchDTO searchDTO) throws BusinessException {
+
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        StringBuilder sql = new StringBuilder();
+        List<HistoryDetails> applist = new ArrayList<HistoryDetails>();
+        HistoryResponse historyResponse = new HistoryResponse();
+        String depDB = DbUtils.getDbNames().get(DataSourceNames.WSO2TELCO_DEP_DB);
+        String apimgtDB = DbUtils.getDbNames().get(DataSourceNames.WSO2AM_DB);
+        List<Object> paramList = new ArrayList<Object>();
+        
+        sql.append("SELECT * FROM ")
+                .append("(SELECT count(1) as total,application_id, name,created_by,IF(description IS NULL, 'Not Specified', description) AS description,")
+                .append("ELT(FIELD(application_status, 'CREATED', 'APPROVED', 'REJECTED'), 'PENDING APPROVE', 'APPROVED', 'REJECTED') AS app_status,")
+                .append("(SELECT GROUP_CONCAT(opco.operatorname SEPARATOR ',') FROM " + depDB + "." + Tables.DEP_OPERATOR_APPS.getTObject() + " opcoApp ")
+                .append("INNER JOIN " + depDB + "." + Tables.DEP_OPERATORS.getTObject() + " opco ON opcoApp.operatorid = opco.id ")
+                .append("WHERE opcoApp.isactive = 1 AND opcoApp.applicationid = amapp.application_id GROUP BY opcoApp.applicationid) AS oparators ")
+                .append("FROM ").append( apimgtDB).append( "." ).append( Tables.AM_APPLICATION.getTObject() ).append( " amapp ")
+                .append(" WHERE   ")
+                .append(" EXISTS( SELECT 1 FROM " )
+                						.append(depDB ).append( "." ).append( Tables.DEP_OPERATOR_APPS.getTObject() ).append( " opcoApp ")
+                						.append("INNER JOIN ").append( depDB ).append( ".").append( Tables.DEP_OPERATORS.getTObject() ).append( " opco ")
+                						.append(" ON opcoApp.operatorid = opco.id ")
+            							.append("WHERE  opcoApp.applicationid = amapp.application_id  ");
+        								
+        								/*
+        								 * if oparator is not null ck for active oparatos
+        								 */
+        								if(searchDTO.getOperator()!=null && !searchDTO.getOperator().isEmpty()) {
+        									
+        									paramList.add(Integer.valueOf(1));
+        									paramList.add(searchDTO.getOperator().trim());
+        									
+        									sql.append(" AND opcoApp.isactive = ? ")
+        										.append(" AND opco.operatorname LIKE ?").append("%");
+        								}
+        								
+        								/**
+        								 * if application id is provied
+        								 */
+        								if(searchDTO.getApplicationId()!=0 ) {
+        									
+        									paramList.add(Integer.valueOf(searchDTO.getApplicationId()));
+        									
+        									sql.append(" AND amapp.application_id = ? " );
+        								}
+        								/**
+        								 * if application name is provied
+        								 */
+        								if(searchDTO.getApplicationName()!=null && searchDTO.getApplicationName().isEmpty()) {
+        									
+        									paramList.add(searchDTO.getApplicationName().trim());
+        									
+        									sql.append(" AND  amapp.name LIKE ? " ).append("%");
+        								}
+        								
+        								/**
+        								 * if subscription id provied
+        								 */
+        								if(searchDTO.getSubscriber()!=null && !searchDTO.getSubscriber().isEmpty()) {
+        									
+        									paramList.add(searchDTO.getSubscriber());
+        									
+        									sql.append(" AND EXISTS (SELECT 1  FROM " )
+        										.append(Tables.AM_SUBSCRIBER.getTObject()).append(" sub ")
+        						                .append(" WHERE  amapp.subscriber_id = sub.subscriber_id ")
+        						                .append("sub.USER_ID like ?").append("%");
+        									  
+        									  
+        								}
+        								//Close the sub Query
+        								sql.append(")");
+        								
+        
+            if(searchDTO.getStatus()!=null && !searchDTO.getStatus().isEmpty()) {
+            	paramList.add(searchDTO.getStatus().trim());
+            	sql	.append("AND amapp.application_status LIKE ? ").append("%");
+            }   
+        	
+             sql.append("ORDER BY application_id) t")
+                .append(" LIMIT ?,?");
+             paramList.add(searchDTO.getStart());
+             paramList.add(searchDTO.getBatchSize()+searchDTO.getStart());
+
+        try {
+            conn = DbUtils.getDbConnection(DataSourceNames.WSO2AM_DB);
+            ps = conn.prepareStatement(sql.toString());
+             
+            setParams(ps,paramList);
+            log.debug("get Operator Wise API Traffic");
+
+            int size = 0;
+            rs = ps.executeQuery();
+            int total =0;
+            while (rs.next()) {
+                /** Does not consider default application */
+                if (!rs.getString("name").equalsIgnoreCase("DefaultApplication")) {
+                    applist.add(new HistoryDetails(rs));
+                    size++;
+                }
+                total = rs.getInt("total");
+            }
+
+            historyResponse.setApplications(applist);
+            historyResponse.setStart(searchDTO.getStart());
+            historyResponse.setSize((int)searchDTO.getBatchSize());
+            historyResponse.setTotal(total);
+
+
+        } catch (Exception e) {
+            handleException("getApprovalHistory", e);
+        } finally {
+            DbUtils.closeAllConnections(ps, conn, rs);
+        }
+        return historyResponse;
+    }
+    
+    
+    private void setParams(PreparedStatement ps,List<Object> param) throws SQLException {
+     for(int x =0; x<param.size();x++) {
+    	 ps.setObject(x+1, param.get(x));
+     }
+    	
     }
 
     public int getApplicationCount(int applicationId, String applicationName, String subscriber, String operator, String status) throws BusinessException {
