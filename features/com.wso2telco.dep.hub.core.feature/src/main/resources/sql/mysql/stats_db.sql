@@ -447,3 +447,31 @@ CREATE TABLE IF NOT EXISTS `merchant_rates_percentages` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+
+
+
+
+
+
+select count(*) as
+total FROM
+intprodapimgtdb_001.AM_APPLICATION amapp
+WHERE
+EXISTS( SELECT 1 FROM intproddepdb_001.operatorapps
+opcoApp INNER JOIN intproddepdb_001.operators opco
+ON opcoApp.operatorid = opco.id WHERE  opcoApp.applicationid = amapp.application_id
+AND opcoApp.isactive = ?  AND opco.operatorname LIKE ?
+AND EXISTS (SELECT 1  FROM intprodapimgtdb_001.AM_SUBSCRIBER sub  WHERE
+amapp.subscriber_id = sub.subscriber_id AND sub.USER_ID like ?)  )
+AND amapp.application_status LIKE ?  t
+
+
+
+
+
+
+
+
+
+
+

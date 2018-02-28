@@ -143,10 +143,18 @@ abstract class AbstractAppRequestBuilder extends AbsractQueryBuilder {
         return returnCall;
     }
 
-    public HistoryResponse getApprovalHistory(String subscriber, String applicationName, int applicationId, String operator, String status, int offset, int count) throws BusinessException {
+//    public HistoryResponse getApprovalHistory(String subscriber, String applicationName, int applicationId, String operator, String status, int offset, int count) throws BusinessException {
+//        DatabaseHandler handler = new DatabaseHandler();
+//        return handler.getApprovalHistory(subscriber, applicationName, applicationId, operator, status, offset, count);
+//    }
+
+
+    public HistoryResponse getApprovalHistory(HistorySearchDTO historySearchDTO) throws BusinessException {
         DatabaseHandler handler = new DatabaseHandler();
-        return handler.getApprovalHistory(subscriber, applicationName, applicationId, operator, status, offset, count);
+        return handler.getApprovalHistory(historySearchDTO);
     }
+
+
 
     @Override
     protected abstract Callback buildApprovalRequest(ApprovalRequest approvalRequest, UserProfileDTO userProfile) throws BusinessException;
@@ -159,6 +167,7 @@ abstract class AbstractAppRequestBuilder extends AbsractQueryBuilder {
     public Callback getHistoryData(TaskSearchDTO searchDTO, UserProfileDTO userProfile) throws BusinessException {
 
         String filterStr = searchDTO.getFilterBy();
+        HistorySearchDTO historySearchDTO = new HistorySearchDTO();
         final Map<String, String> varMap = new HashMap<String, String>();
         Callback returnCall;
 
@@ -173,38 +182,45 @@ abstract class AbstractAppRequestBuilder extends AbsractQueryBuilder {
             }
         }
 
-        String subscriber = ALL;
-        int applicationId;
-        String applicationName =ALL;
-        String operator = ALL;
-        String status = ALL;
+        historySearchDTO.setSubscriber(ALL);
+        historySearchDTO.setApplicationId(0);
+        historySearchDTO.setApplicationName(ALL);
+
+        historySearchDTO.setOperator(ALL);
+        historySearchDTO.setStatus(ALL);
 
         if (varMap.containsKey(HistoryVariable.SP.key())) {
-            subscriber = varMap.get(HistoryVariable.SP.key());
+            historySearchDTO.setSubscriber(varMap.get(HistoryVariable.SP.key()));
+        } else {
+            historySearchDTO.setSubscriber("%");
         }
 
         if(varMap.containsKey(HistoryVariable.NAME.key())){
-            applicationName = varMap.get(HistoryVariable.NAME.key());
+            historySearchDTO.setApplicationName(varMap.get(HistoryVariable.NAME.key()));
+        } else {
+            historySearchDTO.setApplicationName("%");
         }
 
         if(varMap.containsKey(HistoryVariable.ID.key())) {
-            applicationId = Integer.parseInt(varMap.get(HistoryVariable.ID.key()));
+            historySearchDTO.setApplicationId(Integer.parseInt(varMap.get(HistoryVariable.ID.key())));
         }else {
-            applicationId = 0;
+            historySearchDTO.setApplicationId(0);
         }
 
         if (varMap.containsKey(HistoryVariable.STATUS.key())) {
-            status = varMap.get(HistoryVariable.STATUS.key());
+            historySearchDTO.setStatus(varMap.get(HistoryVariable.STATUS.key()));
+        } else {
+            historySearchDTO.setStatus("%");
         }
 
         if(!isAdmin(userProfile)){
-            operator = userProfile.getUserName().toUpperCase();
+            historySearchDTO.setOperator(userProfile.getUserName().toUpperCase());
         }else if(varMap.containsKey(HistoryVariable.OPARATOR.key())){
-            operator = varMap.get(HistoryVariable.OPARATOR.key());
+              historySearchDTO.setOperator(varMap.get(HistoryVariable.OPARATOR.key()));
         }
 
         try {
-            HistoryResponse apiRequests = getApprovalHistory( subscriber, applicationName, applicationId, operator, status, searchDTO.getStart(), searchDTO.getBatchSize());
+            HistoryResponse apiRequests = getApprovalHistory(historySearchDTO);
             returnCall = new Callback().setPayload(apiRequests).setSuccess(true).setMessage(Messages.APPLICATION_HISTORY_SUCCESS.getValue());
         } catch (Exception e) {
             returnCall = new Callback().setPayload(e.getMessage()).setSuccess(false).setMessage(Messages.APPLICATION_HISTORY_FAILED.getValue());

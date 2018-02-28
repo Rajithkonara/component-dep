@@ -217,10 +217,16 @@ abstract class AbstractSubRequestBuilder extends AbsractQueryBuilder {
     @Override
     protected abstract Callback buildApprovalRequest(ApprovalRequest approvalRequest, UserProfileDTO userProfile) throws BusinessException;
 
+//    @Override
+//    public HistoryResponse getApprovalHistory(String subscriber, String applicationName, int applicationId, String operator, String status, int offset, int count) throws BusinessException {
+//        return null;
+//    }
+
     @Override
-    public HistoryResponse getApprovalHistory(String subscriber, String applicationName, int applicationId, String operator, String status, int offset, int count) throws BusinessException {
+    public HistoryResponse getApprovalHistory(HistorySearchDTO historySearchDTO) throws BusinessException {
         return null;
     }
+
 
     protected Callback executeTaskApprovalRequest(TaskApprovalRequest approvalRequest, ApprovalRequest request) throws BusinessException {
         ActivityRestClient activityClient = RestClientFactory.getInstance().getClient(getProcessDefinitionKey());
